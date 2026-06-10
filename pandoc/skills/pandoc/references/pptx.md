@@ -70,8 +70,7 @@ The pptx writer picks layouts from the reference doc by name:
 The reference pptx controls all visual styling (fonts, colors, backgrounds, layouts).
 Content in the reference pptx is ignored — only layouts and theme are used.
 
-**Required layout names** (must exist in the reference pptx):
-`Title Slide`, `Title and Content`, `Section Header`, `Two Content`, `Comparison`, `Content with Caption`, `Blank`
+**Required layout names:** all seven layouts from the Layout Mapping table above must exist in the reference pptx.
 
 **Get the default reference to modify:**
 ```bash
@@ -151,13 +150,32 @@ Note: `width` attributes are ignored in pptx — column widths are fixed by the 
 Content here.
 ```
 
-## Metadata Variables
+## Inspecting an Existing PPTX
 
-Useful variables for pptx output (set via `-V key=value` or YAML):
+Pandoc can read `.pptx` files as input, not just write them. This is useful for extracting content — including image alt text — without opening PowerPoint.
 
-| Variable | Effect |
-|----------|--------|
-| `title` | Title slide title |
-| `author` | Title slide author |
-| `date` | Title slide date |
-| `notes` | Speaker notes for title slide |
+**Human-readable inspection:**
+```bash
+pandoc input.pptx -t native
+```
+
+The native output shows the parsed document tree. Images appear as `Image` nodes with their alt text as the first argument:
+
+```
+Image ("", [], []) [Str "A bar chart showing Q4 revenue"] ("image1.png", "")
+```
+
+The bracketed string (`[Str "..."]`) is the alt text.
+
+**Structured extraction with jq:**
+```bash
+pandoc input.pptx -t json | jq '.. | objects | select(.t == "Image") | .c[1]'
+```
+
+This returns each image's alt text as a JSON array of inline elements. To get plain strings:
+```bash
+pandoc input.pptx -t json \
+  | jq -r '.. | objects | select(.t == "Image") | .c[1][] | select(.t == "Str") | .c'
+```
+
+**Note:** Alt text is only present when it was set in the original file. Images with no alt text produce an empty array (`[]`).
