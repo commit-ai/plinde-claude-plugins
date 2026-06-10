@@ -1,82 +1,82 @@
 ---
 name: pandoc
-description: This skill should be used when converting documents between formats (Markdown, DOCX, PDF, HTML, LaTeX, etc.) using pandoc. Use for format conversion, document generation, and preparing markdown for Google Docs or other word processors.
+description: Use this skill when converting documents between formats (Markdown, DOCX, PDF, HTML, PPTX, LaTeX, etc.) using pandoc. Use for format conversion, document generation, slide shows and presentations, preparing markdown for Google Docs or other word processors, and applying custom styles via reference docs. Trigger whenever the user mentions pandoc, document conversion, creating slides/presentations from markdown, or wants to produce a styled Word or PowerPoint file.
 ---
 
 # Pandoc Document Conversion Skill
 
-Convert documents between formats using pandoc, the universal document converter.
+Convert documents between formats using pandoc.
+
+**For DOCX-specific details** (styles, reference docs, Google Docs): read `references/docx.md`
+**For PPTX/slide shows** (layouts, speaker notes, columns, reference pptx): read `references/pptx.md`
 
 ## Prerequisites
 
 ```bash
-# Check if pandoc is installed
-pandoc --version
-
-# Install via Homebrew if needed
-brew install pandoc
+pandoc --version          # verify installed
+brew install pandoc       # install if missing
 ```
+
+## Core Principle: Never Modify Input
+
+When the user provides input content, convert it as-is. Do not rewrite, reformat, or restructure the content — only control the pandoc command and options.
 
 ## Common Conversions
 
-### Markdown to Word (.docx)
+### Markdown → Word (.docx)
 
 ```bash
-# Basic conversion
 pandoc input.md -o output.docx
-
-# With table of contents
-pandoc input.md --toc -o output.docx
-
-# With custom reference doc (for styling)
-pandoc input.md --reference-doc=template.docx -o output.docx
-
-# Standalone with metadata
-pandoc input.md -s --metadata title="Document Title" -o output.docx
+pandoc input.md --reference-doc=template.docx -o output.docx   # styled
+pandoc input.md --toc -o output.docx                            # with TOC
 ```
 
-### Markdown to PDF
+See `references/docx.md` for full details on reference docs and custom styles.
+
+### Markdown → PowerPoint (.pptx)
 
 ```bash
-# Requires LaTeX - install one of:
-#   brew install --cask basictex      # Smaller (~100MB)
-#   brew install --cask mactex-no-gui # Full (~4GB)
-# After install: eval "$(/usr/libexec/path_helper)" or new terminal
-
-# Basic conversion (uses pdflatex)
-pandoc input.md -o output.pdf
-
-# With table of contents and custom margins
-pandoc input.md -s --toc --toc-depth=2 -V geometry:margin=1in -o output.pdf
-
-# Using xelatex (better Unicode support - box drawings, arrows, etc.)
-export PATH="/Library/TeX/texbin:$PATH"
-pandoc input.md --pdf-engine=xelatex -V geometry:margin=1in -o output.pdf
+pandoc input.md -o output.pptx
+pandoc input.md --reference-doc=template.pptx -o output.pptx   # styled
+pandoc input.md --slide-level=2 -o output.pptx                  # explicit slide level
 ```
 
-**PDF Engine Selection:**
+See `references/pptx.md` for full details on slide structure, layouts, speaker notes.
 
-| Engine | Use When |
+### Markdown → PDF
+
+```bash
+# Requires LaTeX: brew install --cask basictex
+pandoc input.md -o output.pdf
+pandoc input.md --toc --toc-depth=2 -V geometry:margin=1in -o output.pdf
+
+# Unicode characters (arrows, box-drawing, emojis)
+export PATH="/Library/TeX/texbin:$PATH"
+pandoc input.md --pdf-engine=xelatex -o output.pdf
+```
+
+| Engine | Use when |
 |--------|----------|
-| `pdflatex` | Default, ASCII content only |
-| `xelatex` | Unicode characters (arrows, box-drawing, emojis) |
+| `pdflatex` | Default, ASCII content |
+| `xelatex` | Unicode characters |
 | `lualatex` | Complex typography, OpenType fonts |
 
-### Markdown to HTML
+**No LaTeX?** Use the HTML print-to-PDF workflow below.
 
-**Critical:** Always use `-f gfm` (GitHub Flavored Markdown) for proper line break and list handling. Standard markdown collapses consecutive lines into paragraphs.
+### Markdown → HTML
+
+**Always use `-f gfm`** for reliable list and line-break handling.
 
 ```bash
-# RECOMMENDED: GitHub Flavored Markdown with full styling
+# Recommended: GFM with inline styling
 pandoc -f gfm -s -H <(cat << 'STYLE'
 <style>
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;max-width:800px;margin:0 auto;padding:2em;line-height:1.6}
 h1{border-bottom:2px solid #333;padding-bottom:0.3em}
 h2{border-bottom:1px solid #ccc;padding-bottom:0.2em;margin-top:1.5em}
-h3{margin-top:1.2em}
 ul,ol{margin:0.5em 0 0.5em 1.5em;padding-left:1em}
 ul{list-style-type:disc}ol{list-style-type:decimal}
-li{margin:0.3em 0}ul ul,ol ul{list-style-type:circle;margin:0.2em 0 0.2em 1em}
+li{margin:0.3em 0}
 table{border-collapse:collapse;width:100%;margin:1em 0}
 th,td{border:1px solid #ddd;padding:8px;text-align:left}
 th{background-color:#f5f5f5}
@@ -87,215 +87,72 @@ blockquote{border-left:4px solid #ddd;margin:1em 0;padding-left:1em;color:#666}
 STYLE
 ) input.md -o output.html
 
-# Quick version (minimal styling)
+# Quick
 pandoc -f gfm -s input.md -o output.html
-
-# With hard line breaks (newlines become <br>)
-pandoc -f markdown+hard_line_breaks -s input.md -o output.html
 
 # Self-contained (embeds images/CSS)
 pandoc -f gfm -s --embed-resources --standalone input.md -o output.html
 ```
 
-**Format Options:**
-
-| Option | Use When |
-|--------|----------|
-| `-f gfm` | Default choice - handles lists, line breaks, tables correctly |
-| `-f markdown+hard_line_breaks` | Force all newlines to become `<br>` |
-| `-f commonmark` | Strict CommonMark compliance |
-
-### HTML for Print-to-PDF (No LaTeX Required)
-
-When LaTeX isn't available, create styled HTML and print to PDF from browser:
+### HTML for Print-to-PDF (no LaTeX)
 
 ```bash
-# Create inline CSS file
-cat > /tmp/print-style.css << 'EOF'
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-       max-width: 800px; margin: 0 auto; padding: 2em; line-height: 1.6; }
-h1 { border-bottom: 2px solid #333; padding-bottom: 0.3em; }
-h2 { border-bottom: 1px solid #ccc; padding-bottom: 0.2em; margin-top: 1.5em; }
-h3 { margin-top: 1.2em; }
-/* Lists - critical for proper rendering */
-ul, ol { margin: 0.5em 0 0.5em 1.5em; padding-left: 1em; }
-ul { list-style-type: disc; }
-ol { list-style-type: decimal; }
-li { margin: 0.3em 0; }
-ul ul, ol ul { list-style-type: circle; margin: 0.2em 0 0.2em 1em; }
-ul ol, ol ol { margin: 0.2em 0 0.2em 1em; }
-ul ul ul, ol ul ul { list-style-type: square; }
-/* Tables */
-table { border-collapse: collapse; width: 100%; margin: 1em 0; }
-th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-th { background-color: #f5f5f5; }
-/* Code */
-code { background-color: #f4f4f4; padding: 2px 6px; border-radius: 3px; }
-pre { background-color: #f4f4f4; padding: 1em; overflow-x: auto; border-radius: 5px; }
-/* Other */
-blockquote { border-left: 4px solid #ddd; margin: 1em 0; padding-left: 1em; color: #666; }
-@media print { body { max-width: none; } }
-EOF
-
-# Convert with embedded styles (ALWAYS use -f gfm)
-pandoc -f gfm input.md -s --toc --toc-depth=2 -c /tmp/print-style.css --embed-resources --standalone -o output.html
-
-# Open and print to PDF (Cmd+P > Save as PDF)
-open output.html
+pandoc -f gfm input.md -s --toc --toc-depth=2 --embed-resources --standalone -o output.html
+open output.html   # then Cmd+P > Save as PDF
 ```
 
-### Word to Markdown
+### Word → Markdown
 
 ```bash
-# Extract markdown from docx
 pandoc input.docx -o output.md
-
-# With ATX-style headers
-pandoc input.docx --atx-headers -o output.md
+pandoc -f docx+styles input.docx -o output.md   # preserve custom styles
 ```
 
 ## Useful Options
 
 | Option | Description |
 |--------|-------------|
-| `-s` / `--standalone` | Produce standalone document with header/footer |
-| `--toc` | Generate table of contents |
-| `--toc-depth=N` | TOC depth (default: 3) |
+| `-s` / `--standalone` | Standalone document with header/footer |
+| `--toc` | Table of contents |
+| `--toc-depth=N` | TOC depth (default 3) |
+| `--reference-doc=FILE` | Style reference for docx/pptx |
+| `--slide-level=N` | Which heading level creates slides |
+| `-i` / `--incremental` | Incremental list display in slides |
 | `-V key=value` | Set template variable |
 | `--metadata key=value` | Set metadata field |
-| `--reference-doc=FILE` | Use FILE for styling (docx/odt) |
-| `--template=FILE` | Use custom template |
-| `--highlight-style=STYLE` | Syntax highlighting (pygments, tango, etc.) |
-| `--number-sections` | Number section headings |
-| `-f FORMAT` | Input format (if not auto-detected) |
-| `-t FORMAT` | Output format (if not auto-detected) |
+| `--number-sections` | Numbered headings |
+| `-f FORMAT` | Input format override |
+| `-t FORMAT` | Output format override |
 
 ## Format Identifiers
 
-| Format | Identifier |
-|--------|------------|
-| Markdown | `markdown`, `gfm` (GitHub), `commonmark` |
+| Format | ID |
+|--------|----|
+| GitHub Markdown | `gfm` |
 | Word | `docx` |
+| PowerPoint | `pptx` |
 | PDF | `pdf` |
-| HTML | `html`, `html5` |
+| HTML | `html5` |
 | LaTeX | `latex` |
-| RST | `rst` |
-| EPUB | `epub` |
-| ODT | `odt` |
-| RTF | `rtf` |
-
-## Google Docs Workflow
-
-To get markdown into Google Docs with formatting preserved:
-
-```bash
-# 1. Convert to docx
-pandoc document.md -o document.docx
-
-# 2. Upload to Google Drive
-# 3. Right-click > Open with > Google Docs
-```
-
-Google Docs imports .docx files well and preserves:
-- Headings
-- Bold/italic
-- Lists (bulleted and numbered)
-- Tables
-- Links
-- Code blocks (as monospace)
-
-## PSI Document Conversion
-
-For PSI documents with tables and complex formatting:
-
-```bash
-# Convert PSI markdown to Word
-pandoc PSI-document.md \
-  --standalone \
-  --toc \
-  --toc-depth=2 \
-  -o PSI-document.docx
-
-# Open for review
-open PSI-document.docx
-```
+| Beamer slides | `beamer` |
+| reveal.js | `revealjs` |
 
 ## Troubleshooting
 
-### Lists/Lines Running Together (HTML)
+**Lists/lines merging (HTML):** Use `-f gfm`
 
-If bullet points, numbered lists, or consecutive lines merge into one paragraph:
-
-**Cause:** Standard markdown treats consecutive lines as one paragraph. Lists need blank lines before them.
-
-**Fix:** Use GitHub Flavored Markdown (`-f gfm`):
+**Unicode PDF errors:**
 ```bash
-# Always use -f gfm for reliable formatting
-pandoc -f gfm -s input.md -o output.html
-
-# For documents where newlines should be <br> tags
-pandoc -f markdown+hard_line_breaks -s input.md -o output.html
-```
-
-**Why this happens:**
-- Standard markdown: `Line 1\nLine 2` → `<p>Line 1 Line 2</p>` (merged)
-- GFM: Better list detection, handles edge cases
-- `+hard_line_breaks`: `Line 1\nLine 2` → `Line 1<br>Line 2` (preserved)
-
-### Tables Not Rendering
-
-Pandoc requires proper markdown table syntax:
-```markdown
-| Header 1 | Header 2 |
-|----------|----------|
-| Cell 1   | Cell 2   |
-```
-
-### Code Blocks Missing Highlighting
-
-Use fenced code blocks with language identifier:
-```markdown
-```python
-def example():
-    pass
-```
-```
-
-### PDF Generation Fails
-
-**"pdflatex not found"** - Install LaTeX:
-```bash
-# Smaller option (~100MB)
-brew install --cask basictex
-
-# Full option (~4GB)
-brew install --cask mactex-no-gui
-
-# After install, update PATH
-eval "$(/usr/libexec/path_helper)"
-# Or open a new terminal
-```
-
-**Unicode character errors (box-drawing, arrows, emojis):**
-```bash
-# Use xelatex instead of pdflatex
 export PATH="/Library/TeX/texbin:$PATH"
 pandoc input.md --pdf-engine=xelatex -o output.pdf
 ```
 
-**No LaTeX available** - Use HTML print-to-PDF workflow:
+**"pdflatex not found":**
 ```bash
-pandoc input.md -s --toc -o output.html
-open output.html
-# Then Cmd+P > Save as PDF
+brew install --cask basictex
+eval "$(/usr/libexec/path_helper)"
 ```
 
-## Self-Test
+**Tables not rendering:** Ensure proper markdown table syntax with `|---|` separator row.
 
-```bash
-# Verify pandoc installation
-pandoc --version | head -1
-
-# Test basic conversion
-echo "# Test\n\nHello **world**" | pandoc -f markdown -t html
-```
+**Code blocks missing highlighting:** Use fenced blocks with language: ` ```python `.
